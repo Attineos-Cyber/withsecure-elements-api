@@ -57,23 +57,23 @@ client.authenticate(read_write=True)
 
 ```python
 # Get all organizations
-organizations, errors = client.get_organizations()
+organizations = client.get_organizations()
 
 # Get a specific organization by ID
-org, errors = client.get_organizations(organization_id="your_org_id")
+org = client.get_organizations(organization_id="your_org_id")
 
 # Get devices for a specific organization
-devices, errors = organizations[0].get_devices()
+devices = organizations[0].get_devices()
 ```
 
 ### Managing Devices
 
 ```python
 # Get all devices
-devices, errors = client.get_devices()
+devices = client.get_devices()
 
 # Get devices with filters
-devices, errors = client.get_devices(
+devices = client.get_devices(
     organization_id="your_org_id",
     device_type='computer',
     online=True,
@@ -138,7 +138,7 @@ incident = client.get_incident_by_id("incident_uuid")
 
 ```python
 # Get security events
-events, errors = client.get_security_events(
+events = client.get_security_events(
     organization_id="your_org_id",
     engine_group="edr,epp,ecp",
     severity="high",
@@ -174,20 +174,20 @@ org = orgs[0]
 print(f"Organization: {org.name} (ID: {org.id})")
 
 # Get devices for this organization
-devices, errors = org.get_devices()
+devices = org.get_devices()
 
 # Get incidents for this organization
-incidents, errors = org.get_incidents()
+incidents = org.get_incidents()
 
 # Get security events for this organization
-events, errors = org.get_security_events()
+events = org.get_security_events()
 ```
 
 ### Working with Incidents
 
 ```python
 # Get incidents and work with incident objects
-incidents, errors = client.get_incident_list()
+incidents = client.get_incident_list()
 
 for incident in incidents:
     print(f"Incident: {incident.name}")
