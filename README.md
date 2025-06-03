@@ -30,7 +30,6 @@ pip install withsecure-elements-api
 
 ## Not implemented
 
-- Data aggregation using `ACCEPT: application/vnd.withsecure.aggr+json` header.
 - Invitations
 
 ## Quick Start
@@ -71,6 +70,9 @@ devices = organizations[0].get_devices()
 ```python
 # Get all devices
 devices = client.get_devices()
+
+# Get devices count
+devices_count = client.devices_count()
 
 # Get devices with filters
 devices = client.get_devices(
@@ -140,9 +142,16 @@ incident = client.get_incident_by_id("incident_uuid")
 # Get security events
 events = client.get_security_events(
     organization_id="your_org_id",
-    engine_group="edr,epp,ecp",
+    engine_group=["edr", "epp", "ecp"],
     severity="high",
     limit=200
+)
+
+# Get security events count
+events_count = client.security_events_count(
+    organization_id="your_org_id",
+    engine_group=["edr", "epp", "ecp"],
+    severity="high",
 )
 ```
 
