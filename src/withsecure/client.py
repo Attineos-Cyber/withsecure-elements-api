@@ -232,7 +232,7 @@ class Client:
             InvalidParameters: If organization type is invalid
         """
         # Validate organization type
-        if organization_type not in control.allowed_organization_types:
+        if not control.check_allowed_values(control.allowed_organization_types, organization_type):
             raise exceptions.InvalidParameters(f"Invalid organization type: {organization_type}, allowed values are: {', '.join(control.allowed_organization_types)}")
 
         # Retrieve organizations
@@ -288,7 +288,7 @@ class Client:
             tuple: (list of devices, errors)
         """
         # Validate device type
-        if device_type not in control.allowed_device_types:
+        if device_type and device_type not in control.allowed_device_types:
             raise exceptions.InvalidParameters(f"Invalid device type: {device_type}, allowed values are: {', '.join(control.allowed_device_types)}")
 
         # Validate protection status overview
@@ -507,9 +507,9 @@ class Client:
             raise exceptions.InvalidParameters("At least engine or engine_group are required")
         if engine and engine_group:
             raise exceptions.InvalidParameters("engine and engine_group cannot be used together")        
-        if engine and engine not in control.allowed_engines:
+        if engine and not control.check_allowed_values(control.allowed_engines, engine):
             raise exceptions.InvalidParameters(f"Invalid engine: {engine}, allowed values are: {', '.join(control.allowed_engines)}")
-        if engine_group and engine_group not in control.allowed_engine_groups    :
+        if engine_group and not control.check_allowed_values(control.allowed_engine_groups, engine_group):
             raise exceptions.InvalidParameters(f"Invalid engine group: {engine_group}, allowed values are: {', '.join(control.allowed_engine_groups)}")
 
         # Retrieve security events
@@ -541,10 +541,10 @@ class Client:
         if not engine and not engine_group:
             raise exceptions.InvalidParameters("At least engine or engine_group are required")
         if engine and engine_group:
-            raise exceptions.InvalidParameters("engine and engine_group cannot be used together")        
-        if engine and engine not in control.allowed_engines:
+            raise exceptions.InvalidParameters("engine and engine_group cannot be used together")  
+        if engine and not control.check_allowed_values(control.allowed_engines, engine):
             raise exceptions.InvalidParameters(f"Invalid engine: {engine}, allowed values are: {', '.join(control.allowed_engines)}")
-        if engine_group and engine_group not in control.allowed_engine_groups    :
+        if engine_group and not control.check_allowed_values(control.allowed_engine_groups, engine_group):
             raise exceptions.InvalidParameters(f"Invalid engine group: {engine_group}, allowed values are: {', '.join(control.allowed_engine_groups)}")
 
         endpoint = '/security-events/v1/security-events'
@@ -560,7 +560,7 @@ class Client:
         return self.call_api('POST', endpoint, params, aggregate=True, json=False)
 
     # Incidents
-    def get_incident_list(self,  organization_id=None, incident_id=None, start_time=None, end_time=None, status=('new',), 
+    def get_incident_list(self,  organization_id=None, incident_id=None, start_time=None, end_time=None, status='all', 
                           risk_level=('medium', 'high', 'severe'), resolution=None, limit=20):
         
         '''
@@ -591,11 +591,11 @@ class Client:
             risk_level = control.allowed_risk_levels
 
         # Validate status, resolution, and risk level
-        if status not in control.allowed_incident_statuses and status != 'all':
+        if not control.check_allowed_values(control.allowed_incident_statuses, status):
             raise exceptions.InvalidParameters(f"Invalid status: {status}, allowed values are: {', '.join(control.allowed_incident_statuses)}")
-        if resolution not in control.allowed_incident_resolutions and resolution != 'all':
+        if not control.check_allowed_values(control.allowed_incident_resolutions, resolution):
             raise exceptions.InvalidParameters(f"Invalid resolution: {resolution}, allowed values are: {', '.join(control.allowed_incident_resolutions)}")
-        if risk_level not in control.allowed_risk_levels and risk_level != 'all':
+        if not control.check_allowed_values(control.allowed_risk_levels, risk_level):
             raise exceptions.InvalidParameters(f"Invalid risk level: {risk_level}, allowed values are: {', '.join(control.allowed_risk_levels)}")
 
         # Retrieve incidents
@@ -693,9 +693,9 @@ class Client:
             resolution (str): The new resolution of the incidents
         '''
         # Validate status and resolution
-        if status not in control.allowed_incident_statuses:
+        if not control.check_allowed_values(control.allowed_incident_statuses, status):
             raise exceptions.InvalidParameters(f"Invalid status: {status}, allowed values are: {', '.join(control.allowed_incident_statuses)}")
-        if resolution not in control.allowed_incident_resolutions and resolution is not None:
+        if resolution and not control.check_allowed_values(control.allowed_incident_resolutions, resolution):
             raise exceptions.InvalidParameters(f"Invalid resolution: {resolution}, allowed values are: {', '.join(control.allowed_incident_resolutions)}")
         
         # Update incidents
@@ -747,7 +747,7 @@ class Client:
         }
         return self.call_api('POST', endpoint, params)
     
-    def list_response_actions(self, organization_id, order=None, type=None, action_id=None, 
+    def list_response_actions(self, organization_id, order='desc', type=None, action_id=None, 
                               state=None, comment=None, author=None, result=None, device_id=None, limit=10):
         '''
         List response actions.
@@ -767,7 +767,14 @@ class Client:
         Returns:
             list: List of response actions
         '''
-        endpoint = '/response-actions/v1/response-actions'
+        if order and not control.check_allowed_values(control.allowed_response_action_orders, order, list_allowed=False):
+            raise exceptions.InvalidParameters(f"Invalid order: {order}, allowed values are: {', '.join(control.allowed_response_action_orders)}")
+        if state and not control.check_allowed_values(control.allowed_response_action_states, state, list_allowed=False):
+            raise exceptions.InvalidParameters(f"Invalid state: {state}, allowed values are: {', '.join(control.allowed_response_action_states)}")
+        if result and not control.check_allowed_values(control.allowed_response_action_results, result, list_allowed=False):
+            raise exceptions.InvalidParameters(f"Invalid result: {result}, allowed values are: {', '.join(control.allowed_response_action_results)}")
+
+        endpoint = '/response-actions/v1/responses'
         params = {
             'organizationId': organization_id,
             'order': order,
@@ -818,7 +825,7 @@ class Client:
         Get the latest version of a database.
         
         Args:
-            database_id (str): The ID of the database to get the latest version of
+            database_id (str or list[str]): The ID of the database to get the latest version of
 
         Returns:
             dict: The version information for the given database
@@ -840,19 +847,19 @@ class Organization(OrganizationRepresentation):
         Returns:
             list: List of devices
         '''
-        return self.client.get_devices(organization_id=str(self.id), **kwargs)
+        return self.client.get_devices(organization_id=self.id, **kwargs)
 
     def devices_count(self, **kwargs):
         '''
         Get the count of devices for an organization.
         '''
-        return self.client.devices_count(organization_id=str(self.id), **kwargs)
+        return self.client.devices_count(organization_id=self.id, **kwargs)
     
     def devices_histogram(self, **kwargs):
         '''
         Get the histogram of devices for an organization.
         '''
-        return self.client.devices_histogram(organization_id=str(self.id), **kwargs)
+        return self.client.devices_histogram(organization_id=self.id, **kwargs)
 
     def get_incidents(self, **kwargs):
         '''
@@ -864,7 +871,7 @@ class Organization(OrganizationRepresentation):
         Returns:
             list: List of incidents
         '''
-        return self.client.get_incident_list(organization_id=str(self.id), **kwargs)
+        return self.client.get_incident_list(organization_id=self.id, **kwargs)
 
     def get_security_events(self, **kwargs):
         '''
@@ -897,7 +904,7 @@ class Incident(IncidentRepresentation):
         Returns:
             list: List of detections
         '''
-        return self.client.get_incident_detections(incident_id=str(self.id), start_time=start_time, end_time=end_time, limit=limit)
+        return self.client.get_incident_detections(incident_id=self.id, start_time=start_time, end_time=end_time, limit=limit)
     
     def add_comment(self, comment):
         '''
@@ -906,7 +913,7 @@ class Incident(IncidentRepresentation):
         Args:
             comment (str): The comment to add
         '''
-        return self.client.add_incidents_comments([str(self.id)], comment)
+        return self.client.add_incidents_comments([self.id], comment)
     
     def update_status(self, status, resolution=None):
         '''
@@ -916,7 +923,7 @@ class Incident(IncidentRepresentation):
             status (str): The new status of the incident
             resolution (str): The new resolution of the incident
         '''
-        return self.client.update_incidents_status([str(self.id)], status, resolution)
+        return self.client.update_incidents_status([self.id], status, resolution)
 
 
 class Device(DeviceRepresentation):
@@ -928,7 +935,7 @@ class Device(DeviceRepresentation):
             operation (str): The operation to trigger
             params (dict): Additional parameters for the operation
         '''
-        return self.client.trigger_device_operation(operation, [str(self.id)], params)
+        return self.client.trigger_device_operation(operation, [self.id], params)
     
     def isolate(self, message=None):
         '''
@@ -1011,13 +1018,13 @@ class Device(DeviceRepresentation):
         Returns:
             list: List of operations
         '''
-        return self.client.get_device_operations(str(self.id))
+        return self.client.get_device_operations(self.id)
 
     def delete(self):
         '''
         Delete the device by removing subscription key.
         '''
-        return self.client.delete_devices([str(self.id)])
+        return self.client.delete_devices([self.id])
     
     def update_state(self, state: str):
         '''
@@ -1032,7 +1039,7 @@ class Device(DeviceRepresentation):
         Raises:
             InvalidParameters: If state is invalid
         '''
-        return self.client.update_devices([str(self.id)], state)
+        return self.client.update_devices([self.id], state)
     
     def change_subscription_key(self, subscription_key: str):
         '''
@@ -1044,19 +1051,19 @@ class Device(DeviceRepresentation):
         Returns:
             dict: The result of the operation
         '''
-        return self.client.update_devices([str(self.id)], subscription_key=subscription_key)
+        return self.client.update_devices([self.id], subscription_key=subscription_key)
     
     def set_blocked(self):
         '''
         Set the device to blocked state.
         '''
-        return self.client.update_devices([str(self.id)], state='blocked')
+        return self.client.update_devices([self.id], state='blocked')
     
     def set_inactive(self):
         '''
         Set the device to inactive state.
         '''
-        return self.client.update_devices([str(self.id)], state='inactive')
+        return self.client.update_devices([self.id], state='inactive')
 
     def get_missing_updates(self, severity=None, category=None, limit=100):
         '''
@@ -1073,5 +1080,5 @@ class Device(DeviceRepresentation):
         Raises:
             InvalidParameters: If severity or category is invalid
         '''
-        return self.client.query_missing_updates(str(self.id), severity, category, limit)
+        return self.client.query_missing_updates(self.id, severity, category, limit)
     
