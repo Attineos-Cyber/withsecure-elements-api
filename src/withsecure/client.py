@@ -102,7 +102,7 @@ class Client:
 
         return data
 
-    def call_api(self, method: str, endpoint: str, payload={}, api_limit=None, json=True):
+    def call_api(self, method: str, endpoint: str, payload={}, api_limit=None, json=True, aggregate=False):
         """
         Execute an API request with pagination handling.
         
@@ -138,23 +138,25 @@ class Client:
                 payload['anchor'] = nextAnchor
 
             url = urllib.parse.urljoin(self.url, endpoint)
+            headers = self._headers()
+            if aggregate:
+                headers['Accept'] = 'application/vnd.withsecure.aggr+json'
             
             try:
                 if method == 'GET':
-                    resp = requests.get(url, params=payload, headers=self._headers())
+                    resp = requests.get(url, params=payload, headers=headers)
                 elif method == 'POST':
-                    #
                     if json:
-                        resp = requests.post(url, json=payload, headers=self._headers())
+                        resp = requests.post(url, json=payload, headers=headers)
                     else:
-                        resp = requests.post(url, data=payload, headers=self._headers())
+                        resp = requests.post(url, data=payload, headers=headers)
                 elif method == 'DELETE':
                     if json:
-                        resp = requests.delete(url, json=payload, headers=self._headers())
+                        resp = requests.delete(url, json=payload, headers=headers)
                     else:
-                        resp = requests.delete(url, data=payload, headers=self._headers())
+                        resp = requests.delete(url, data=payload, headers=headers)
                 elif method == 'PATCH':
-                    resp = requests.patch(url, json=payload, headers=self._headers())
+                    resp = requests.patch(url, json=payload, headers=headers)
                 else:
                     raise exceptions.ClientError(f"Unsupported HTTP method: {method}")
 
@@ -230,7 +232,7 @@ class Client:
             InvalidParameters: If organization type is invalid
         """
         # Validate organization type
-        if organization_type not in allowed_organization_types:
+        if organization_type not in control.allowed_organization_types:
             raise exceptions.InvalidParameters(f"Invalid organization type: {organization_type}, allowed values are: {', '.join(allowed_organization_types)}")
 
         # Retrieve organizations
@@ -347,6 +349,50 @@ class Client:
         else:
             raise exceptions.ResourceNotFound(f"Device with ID {device_id} not found")
     
+    def devices_count(self, group_by: str = 'protectionStatus', organization_id: str = None, online: bool = None,  
+                      label: str = None, client_version: str = None, protection_status_overview: str = None,):
+        '''
+        Count the number of devices.
+        
+        Args:
+            count_by (str): The field to count by
+            organization_id (str): Organization ID
+            online (bool): Online status
+            label (str): Device label
+            client_version (str): Client version
+            protection_status_overview (str): Protection status overview
+        '''
+        if group_by not in control.allowed_group_by:
+            raise exceptions.InvalidParameters(f"Invalid group by: {group_by}, allowed values are: {', '.join(control.allowed_group_by)}")
+        
+        endpoint = '/devices/v1/devices'
+        params = {
+            'organizationId': organization_id,
+            'online': online,
+            'label': label,
+            'clientVersion': client_version,
+            'protectionStatusOverview': protection_status_overview,
+            'count': group_by,
+        }
+        return self.call_api('GET', endpoint, params, aggregate=True)
+
+
+    def devices_histogram(self, organization_id: str = None, online: bool = None, label: str = None, 
+                          client_version: str = None, protection_status_overview: str = None,):
+        '''
+        Retrieve the histogram of devices.
+        '''
+        endpoint = '/devices/v1/devices'
+        params = {
+            'organizationId': organization_id,
+            'online': online,
+            'label': label,
+            'clientVersion': client_version,
+            'protectionStatusOverview': protection_status_overview,
+            'histogram': 'protectionStatus',
+        }
+        return self.call_api('GET', endpoint, params, aggregate=True)
+
     # Operations
     def get_device_operations(self, device_id: str):
         '''
@@ -497,19 +543,19 @@ class Client:
         '''
         # Add 'all' to the list of allowed values
         if status == 'all':
-            status = allowed_incident_statuses
+            status = control.allowed_incident_statuses
         if resolution == 'all':
-            resolution = allowed_incident_resolutions
+            resolution = control.allowed_incident_resolutions
         if risk_level == 'all':
-            risk_level = allowed_risk_levels
+            risk_level = control.allowed_risk_levels
 
         # Validate status, resolution, and risk level
-        if status not in allowed_incident_statuses and status != 'all':
-            raise exceptions.InvalidParameters(f"Invalid status: {status}, allowed values are: {', '.join(allowed_incident_statuses)}")
-        if resolution not in allowed_incident_resolutions and resolution != 'all':
-            raise exceptions.InvalidParameters(f"Invalid resolution: {resolution}, allowed values are: {', '.join(allowed_incident_resolutions)}")
-        if risk_level not in allowed_risk_levels and risk_level != 'all':
-            raise exceptions.InvalidParameters(f"Invalid risk level: {risk_level}, allowed values are: {', '.join(allowed_risk_levels)}")
+        if status not in control.allowed_incident_statuses and status != 'all':
+            raise exceptions.InvalidParameters(f"Invalid status: {status}, allowed values are: {', '.join(control.allowed_incident_statuses)}")
+        if resolution not in control.allowed_incident_resolutions and resolution != 'all':
+            raise exceptions.InvalidParameters(f"Invalid resolution: {resolution}, allowed values are: {', '.join(control.allowed_incident_resolutions)}")
+        if risk_level not in control.allowed_risk_levels and risk_level != 'all':
+            raise exceptions.InvalidParameters(f"Invalid risk level: {risk_level}, allowed values are: {', '.join(control.allowed_risk_levels)}")
 
         # Retrieve incidents
         endpoint = '/incidents/v1/incidents'
@@ -754,6 +800,18 @@ class Organization(OrganizationRepresentation):
             list: List of devices
         '''
         return self.client.get_devices(organization_id=str(self.id), **kwargs)
+
+    def devices_count(self, **kwargs):
+        '''
+        Get the count of devices for an organization.
+        '''
+        return self.client.devices_count(organization_id=str(self.id), **kwargs)
+    
+    def devices_histogram(self, **kwargs):
+        '''
+        Get the histogram of devices for an organization.
+        '''
+        return self.client.devices_histogram(organization_id=str(self.id), **kwargs)
 
     def get_incidents(self, **kwargs):
         '''

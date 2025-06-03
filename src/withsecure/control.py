@@ -12,3 +12,4 @@ allowed_update_severities = ['critical', 'important', 'moderate', 'low', 'unclas
 allowed_update_categories = ['security', 'nonSecurity', 'servicePack', 'securityTool', 'none']
 allowed_features = ['debugLogging']
 allowed_device_states = ['blocked', 'inactive']
+allowed_group_by = ['protectionStatus', 'patchOverallState', 'firewallState', 'malwareState']
