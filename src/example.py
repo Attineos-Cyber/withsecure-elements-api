@@ -2,7 +2,6 @@ import os
 from statistics import mean
 
 import withsecure
-from withsecure.enums import IncidentStatus
 
 client_id = os.environ.get('WS_CLIENT_ID')
 secret_id = os.environ.get('WS_SECRET_ID')
@@ -15,14 +14,14 @@ if __name__ == "__main__":
     resolution_type = ('unconfirmed', 'confirmed', 'falsePositive')
     status_type = ('new', 'acknowledged', 'inProgress', 'monitoring', 'closed', 'waitingForCustomer')
 
-    incidents = client.get_incident_list(start_time=searchdate, status=status_type, resolution=resolution_type, limit=5)
+    incidents = client.get_incident_list(start_time=searchdate, status=status_type, resolution=resolution_type, limit=500)
     print("Nombre d'incident depuis le début de l'année : %s" % len(incidents))
 
     close_time_dt = []
 
     for incident in incidents:
         start_dt = incident.created_timestamp.strftime('%Y:%m:%d - %H:%M:%S')
-        end_dt = incident.updated_timestamp.strftime('%Y:%m:%d - %H:%M:%S') if incident.status == IncidentStatus.Closed else None
+        end_dt = incident.updated_timestamp.strftime('%Y:%m:%d - %H:%M:%S') if incident.status == 'closed' else None
         diff_dt = (incident.updated_timestamp - incident.created_timestamp).total_seconds() if end_dt else 0
 
 
