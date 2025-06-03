@@ -256,6 +256,20 @@ class Client:
             results.append(org_object)
         return results
 
+    def get_organization_by_id(self, organization_id: str):
+        """
+        Retrieve an organization by its ID.
+        """
+        endpoint = '/organizations/v1/organizations'
+        params = {
+            'organizationId': organization_id
+        }
+        orgs = self.get_organizations(organization_id=organization_id, limit=1)
+        if orgs:
+            return orgs[0]
+        else:
+            raise exceptions.ResourceNotFound(f"Organization with ID {organization_id} not found")    
+
     # Devices
     def get_devices(self, organization_id: str = None, device_id: UUID = None, device_type: str = None,
                     state: str = None, name: str = None, serial_number: str = None, online: bool = None,
@@ -803,10 +817,15 @@ class Client:
         Returns:
             list: List of missing updates
         '''
+        if severity == 'all':
+            severity = control.allowed_update_severities
+        if category == 'all':
+            category = control.allowed_update_categories
+
         # Validate severity and category
-        if severity not in control.allowed_update_severities:
+        if not control.check_allowed_values(control.allowed_update_severities, severity):
             raise exceptions.InvalidParameters(f"Invalid severity: {severity}, allowed values are: {', '.join(control.allowed_update_severities)}")
-        if category not in control.allowed_update_categories:
+        if not control.check_allowed_values(control.allowed_update_categories, category):
             raise exceptions.InvalidParameters(f"Invalid category: {category}, allowed values are: {', '.join(control.allowed_update_categories)}")
         
         # Query missing updates
