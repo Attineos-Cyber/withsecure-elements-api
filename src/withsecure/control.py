@@ -13,3 +13,4 @@ allowed_update_categories = ['security', 'nonSecurity', 'servicePack', 'security
 allowed_features = ['debugLogging']
 allowed_device_states = ['blocked', 'inactive']
 allowed_devices_group_by = ['protectionStatus', 'patchOverallState', 'firewallState', 'malwareState']
+allowed_security_events_group_by = ['engine', 'url', 'alertType', 'deviceId', 'infectionName', 'categories', 'appliedRule', 'filePath', 'description']

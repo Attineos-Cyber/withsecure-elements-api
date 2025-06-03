@@ -481,8 +481,8 @@ class Client:
         return self.call_api('POST', endpoint, data)
 
     # Security Events
-    def get_security_events(self, organization_id=None, engine="", engine_group="edr,epp,ecp", severity="", limit=200,
-                            start_time=None):
+    def get_security_events(self, organization_id=None, engine=None, engine_group=None, severity=None,
+                            start_time=None, end_time=None, limit=200):
         '''
         Retrieve the list of security events.
         
@@ -500,10 +500,16 @@ class Client:
         Raises:
             InvalidParameters: If engine or engine group is invalid
         '''
-        # Validate engine and engine group
-        if engine not in control.allowed_engines:
+        # Validate start_time, end_time, engine and engine_group
+        if not start_time and not end_time:
+            raise exceptions.InvalidParameters("At least start_time or end_time are required")
+        if not engine and not engine_group:
+            raise exceptions.InvalidParameters("At least engine or engine_group are required")
+        if engine and engine_group:
+            raise exceptions.InvalidParameters("engine and engine_group cannot be used together")        
+        if engine and engine not in control.allowed_engines:
             raise exceptions.InvalidParameters(f"Invalid engine: {engine}, allowed values are: {', '.join(control.allowed_engines)}")
-        if engine_group not in control.allowed_engine_groups    :
+        if engine_group and engine_group not in control.allowed_engine_groups    :
             raise exceptions.InvalidParameters(f"Invalid engine group: {engine_group}, allowed values are: {', '.join(control.allowed_engine_groups)}")
 
         # Retrieve security events
@@ -514,9 +520,44 @@ class Client:
             'engineGroup': engine_group,
             'severity': severity,
             'persistenceTimestampStart': start_time,
+            'persistenceTimestampEnd': end_time,
             'limit': limit
         }
-        return self.call_api('POST', endpoint, params, api_limit=200)
+        # TODO: Remove json=False when the API is fixed.
+        # Currently the API does not support JSON input even if the documentation says it does.
+        return self.call_api('POST', endpoint, params, api_limit=200, json=False)
+
+
+    def security_events_count(self, group_by: str = '', organization_id=None, engine=None, engine_group=None, 
+                              severity=None, start_time=None, end_time=None):
+        '''
+        Retrieve the count of security events.
+        '''
+        # Validate group_by, start_time, end_time, engine and engine_group
+        if group_by not in control.allowed_security_events_group_by:
+            raise exceptions.InvalidParameters(f"Invalid group by: {group_by}, allowed values are: {', '.join(control.allowed_security_events_group_by)}")
+        if not start_time and not end_time:
+            raise exceptions.InvalidParameters("At least start_time or end_time are required")
+        if not engine and not engine_group:
+            raise exceptions.InvalidParameters("At least engine or engine_group are required")
+        if engine and engine_group:
+            raise exceptions.InvalidParameters("engine and engine_group cannot be used together")        
+        if engine and engine not in control.allowed_engines:
+            raise exceptions.InvalidParameters(f"Invalid engine: {engine}, allowed values are: {', '.join(control.allowed_engines)}")
+        if engine_group and engine_group not in control.allowed_engine_groups    :
+            raise exceptions.InvalidParameters(f"Invalid engine group: {engine_group}, allowed values are: {', '.join(control.allowed_engine_groups)}")
+
+        endpoint = '/security-events/v1/security-events'
+        params = {
+            'organizationId': organization_id,
+            'engine': engine,
+            'engineGroup': engine_group,
+            'severity': severity,
+            'persistenceTimestampStart': start_time,
+            'persistenceTimestampEnd': end_time,
+            'count': group_by,
+        }
+        return self.call_api('POST', endpoint, params, aggregate=True, json=False)
 
     # Incidents
     def get_incident_list(self,  organization_id=None, incident_id=None, start_time=None, end_time=None, status=('new',), 
@@ -835,8 +876,13 @@ class Organization(OrganizationRepresentation):
         Returns:
             list: List of security events
         '''
-        return self.client.get_security_events(organization_id=str(self.id), **kwargs)
+        return self.client.get_security_events(organization_id=self.id, **kwargs)
 
+    def security_events_count(self, **kwargs):
+        '''
+        Get the count of security events for an organization.
+        '''
+        return self.client.security_events_count(organization_id=self.id, **kwargs)
 
 class Incident(IncidentRepresentation):
     def get_detections(self, start_time=None, end_time=None, limit=100):
