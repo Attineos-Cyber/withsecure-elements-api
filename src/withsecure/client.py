@@ -216,7 +216,7 @@ class Client:
             raise exceptions.AuthenticationError(f"Authentication request failed: {str(e)}")
 
     # Organizations
-    def get_organizations(self, organization_type: str = 'company', organization_id: str = None, limit: int =200) -> (str, str):
+    def get_organizations(self, organization_type: str = 'company', organization_id: str = None, limit: int =200):
         """           
         Retrieve the list of organizations.
         
@@ -233,7 +233,7 @@ class Client:
         """
         # Validate organization type
         if organization_type not in control.allowed_organization_types:
-            raise exceptions.InvalidParameters(f"Invalid organization type: {organization_type}, allowed values are: {', '.join(allowed_organization_types)}")
+            raise exceptions.InvalidParameters(f"Invalid organization type: {organization_type}, allowed values are: {', '.join(control.allowed_organization_types)}")
 
         # Retrieve organizations
         endpoint = '/organizations/v1/organizations'
@@ -362,8 +362,8 @@ class Client:
             client_version (str): Client version
             protection_status_overview (str): Protection status overview
         '''
-        if group_by not in control.allowed_group_by:
-            raise exceptions.InvalidParameters(f"Invalid group by: {group_by}, allowed values are: {', '.join(control.allowed_group_by)}")
+        if group_by not in control.allowed_devices_group_by:
+            raise exceptions.InvalidParameters(f"Invalid group by: {group_by}, allowed values are: {', '.join(control.allowed_devices_group_by)}")
         
         endpoint = '/devices/v1/devices'
         params = {
@@ -482,7 +482,7 @@ class Client:
 
     # Security Events
     def get_security_events(self, organization_id=None, engine="", engine_group="edr,epp,ecp", severity="", limit=200,
-                            start_time=None) -> (str, str):
+                            start_time=None):
         '''
         Retrieve the list of security events.
         
