@@ -488,7 +488,7 @@ class Client:
         # Trigger operation
         endpoint = '/devices/v1/operations'
         data = {
-            'operation': operation.value,
+            'operation': operation,
             'targets': targets,
             'parameters': params
         }
@@ -605,11 +605,11 @@ class Client:
             risk_level = control.allowed_risk_levels
 
         # Validate status, resolution, and risk level
-        if not control.check_allowed_values(control.allowed_incident_statuses, status):
+        if status and not control.check_allowed_values(control.allowed_incident_statuses, status):
             raise exceptions.InvalidParameters(f"Invalid status: {status}, allowed values are: {', '.join(control.allowed_incident_statuses)}")
-        if not control.check_allowed_values(control.allowed_incident_resolutions, resolution):
+        if resolution and not control.check_allowed_values(control.allowed_incident_resolutions, resolution):
             raise exceptions.InvalidParameters(f"Invalid resolution: {resolution}, allowed values are: {', '.join(control.allowed_incident_resolutions)}")
-        if not control.check_allowed_values(control.allowed_risk_levels, risk_level):
+        if risk_level and not control.check_allowed_values(control.allowed_risk_levels, risk_level):
             raise exceptions.InvalidParameters(f"Invalid risk level: {risk_level}, allowed values are: {', '.join(control.allowed_risk_levels)}")
 
         # Retrieve incidents
@@ -823,9 +823,9 @@ class Client:
             category = control.allowed_update_categories
 
         # Validate severity and category
-        if not control.check_allowed_values(control.allowed_update_severities, severity):
+        if severity and not control.check_allowed_values(control.allowed_update_severities, severity):
             raise exceptions.InvalidParameters(f"Invalid severity: {severity}, allowed values are: {', '.join(control.allowed_update_severities)}")
-        if not control.check_allowed_values(control.allowed_update_categories, category):
+        if category and not control.check_allowed_values(control.allowed_update_categories, category):
             raise exceptions.InvalidParameters(f"Invalid category: {category}, allowed values are: {', '.join(control.allowed_update_categories)}")
         
         # Query missing updates
