@@ -1,7 +1,6 @@
 from dataclasses import dataclass
 from datetime import datetime
 from typing import Optional,Any
-from uuid import UUID
 from dataclasses_json import LetterCase, dataclass_json
 
 @dataclass_json(letter_case=LetterCase.CAMEL)
@@ -10,7 +9,7 @@ class DeviceRepresentation:
     client: Any = None
 
     # Informations de base
-    id: UUID = None
+    id: Optional[str] = None
     type: Optional[str] = None
     state: Optional[str] = None
     name: Optional[str] = None
@@ -74,7 +73,7 @@ class DeviceRepresentation:
 
 @dataclass
 class Company:
-    id: Optional[UUID]  = None
+    id: Optional[str]  = None
     name: Optional[str] = None
     type: Optional[str] = None
 

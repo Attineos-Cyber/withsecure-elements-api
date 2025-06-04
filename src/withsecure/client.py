@@ -7,16 +7,15 @@ It allows management of organizations, devices, security incidents, and security
 
 import requests
 import urllib.parse
-
+from datetime import datetime
 from requests.auth import HTTPBasicAuth
-from uuid import UUID
+
 from withsecure import control
 from withsecure import exceptions
 from withsecure.representation import DeviceRepresentation, OrganizationRepresentation, IncidentRepresentation
 
 # Base URL for the WithSecure Elements API
 API_URL = 'https://api.connect.withsecure.com'
-
 
 class Client:
     """
@@ -102,7 +101,7 @@ class Client:
 
         return data
 
-    def call_api(self, method: str, endpoint: str, payload={}, api_limit=None, json=True):
+    def call_api(self, method: str, endpoint: str, payload={}, api_limit=None, json=True, aggregate=False):
         """
         Execute an API request with pagination handling.
         
@@ -138,23 +137,25 @@ class Client:
                 payload['anchor'] = nextAnchor
 
             url = urllib.parse.urljoin(self.url, endpoint)
+            headers = self._headers()
+            if aggregate:
+                headers['Accept'] = 'application/vnd.withsecure.aggr+json'
             
             try:
                 if method == 'GET':
-                    resp = requests.get(url, params=payload, headers=self._headers())
+                    resp = requests.get(url, params=payload, headers=headers)
                 elif method == 'POST':
-                    #
                     if json:
-                        resp = requests.post(url, json=payload, headers=self._headers())
+                        resp = requests.post(url, json=payload, headers=headers)
                     else:
-                        resp = requests.post(url, data=payload, headers=self._headers())
+                        resp = requests.post(url, data=payload, headers=headers)
                 elif method == 'DELETE':
                     if json:
-                        resp = requests.delete(url, json=payload, headers=self._headers())
+                        resp = requests.delete(url, json=payload, headers=headers)
                     else:
-                        resp = requests.delete(url, data=payload, headers=self._headers())
+                        resp = requests.delete(url, data=payload, headers=headers)
                 elif method == 'PATCH':
-                    resp = requests.patch(url, json=payload, headers=self._headers())
+                    resp = requests.patch(url, json=payload, headers=headers)
                 else:
                     raise exceptions.ClientError(f"Unsupported HTTP method: {method}")
 
@@ -214,7 +215,7 @@ class Client:
             raise exceptions.AuthenticationError(f"Authentication request failed: {str(e)}")
 
     # Organizations
-    def get_organizations(self, organization_type: str = 'company', organization_id: str = None, limit: int =200) -> (str, str):
+    def get_organizations(self, organization_type: str = 'company', organization_id: str = None, limit: int =200):
         """           
         Retrieve the list of organizations.
         
@@ -230,8 +231,8 @@ class Client:
             InvalidParameters: If organization type is invalid
         """
         # Validate organization type
-        if organization_type not in allowed_organization_types:
-            raise exceptions.InvalidParameters(f"Invalid organization type: {organization_type}, allowed values are: {', '.join(allowed_organization_types)}")
+        if not control.check_allowed_values(control.allowed_organization_types, organization_type):
+            raise exceptions.InvalidParameters(f"Invalid organization type: {organization_type}, allowed values are: {', '.join(control.allowed_organization_types)}")
 
         # Retrieve organizations
         endpoint = '/organizations/v1/organizations'
@@ -254,8 +255,22 @@ class Client:
             results.append(org_object)
         return results
 
+    def get_organization_by_id(self, organization_id: str):
+        """
+        Retrieve an organization by its ID.
+        """
+        endpoint = '/organizations/v1/organizations'
+        params = {
+            'organizationId': organization_id
+        }
+        orgs = self.get_organizations(organization_id=organization_id, limit=1)
+        if orgs:
+            return orgs[0]
+        else:
+            raise exceptions.ResourceNotFound(f"Organization with ID {organization_id} not found")    
+
     # Devices
-    def get_devices(self, organization_id: str = None, device_id: UUID = None, device_type: str = None,
+    def get_devices(self, organization_id: str = None, device_id: str = None, device_type: str = None,
                     state: str = None, name: str = None, serial_number: str = None, online: bool = None,
                     label: str = None, client_version: str = None,
                     protection_status_overview: str = None,
@@ -266,7 +281,7 @@ class Client:
         
         Args:
             organization_id (str): Organization ID
-            device_id (UUID): Specific device ID
+            device_id (str): Specific device ID
             device_type (DeviceType): Device type
             state (DeviceStatus): Device state
             name (str): Device name
@@ -286,7 +301,7 @@ class Client:
             tuple: (list of devices, errors)
         """
         # Validate device type
-        if device_type not in control.allowed_device_types:
+        if device_type and device_type not in control.allowed_device_types:
             raise exceptions.InvalidParameters(f"Invalid device type: {device_type}, allowed values are: {', '.join(control.allowed_device_types)}")
 
         # Validate protection status overview
@@ -347,6 +362,50 @@ class Client:
         else:
             raise exceptions.ResourceNotFound(f"Device with ID {device_id} not found")
     
+    def devices_count(self, group_by: str = 'protectionStatus', organization_id: str = None, online: bool = None,  
+                      label: str = None, client_version: str = None, protection_status_overview: str = None,):
+        '''
+        Count the number of devices.
+        
+        Args:
+            count_by (str): The field to count by
+            organization_id (str): Organization ID
+            online (bool): Online status
+            label (str): Device label
+            client_version (str): Client version
+            protection_status_overview (str): Protection status overview
+        '''
+        if group_by not in control.allowed_devices_group_by:
+            raise exceptions.InvalidParameters(f"Invalid group by: {group_by}, allowed values are: {', '.join(control.allowed_devices_group_by)}")
+        
+        endpoint = '/devices/v1/devices'
+        params = {
+            'organizationId': organization_id,
+            'online': online,
+            'label': label,
+            'clientVersion': client_version,
+            'protectionStatusOverview': protection_status_overview,
+            'count': group_by,
+        }
+        return self.call_api('GET', endpoint, params, aggregate=True)
+
+
+    def devices_histogram(self, organization_id: str = None, online: bool = None, label: str = None, 
+                          client_version: str = None, protection_status_overview: str = None,):
+        '''
+        Retrieve the histogram of devices.
+        '''
+        endpoint = '/devices/v1/devices'
+        params = {
+            'organizationId': organization_id,
+            'online': online,
+            'label': label,
+            'clientVersion': client_version,
+            'protectionStatusOverview': protection_status_overview,
+            'histogram': 'protectionStatus',
+        }
+        return self.call_api('GET', endpoint, params, aggregate=True)
+
     # Operations
     def get_device_operations(self, device_id: str):
         '''
@@ -428,15 +487,15 @@ class Client:
         # Trigger operation
         endpoint = '/devices/v1/operations'
         data = {
-            'operation': operation.value,
+            'operation': operation,
             'targets': targets,
             'parameters': params
         }
         return self.call_api('POST', endpoint, data)
 
     # Security Events
-    def get_security_events(self, organization_id=None, engine="", engine_group="edr,epp,ecp", severity="", limit=200,
-                            start_time=None) -> (str, str):
+    def get_security_events(self, organization_id=None, engine=None, engine_group=None, severity=None,
+                            start_time=None, end_time=None, limit=200):
         '''
         Retrieve the list of security events.
         
@@ -452,13 +511,35 @@ class Client:
             list: List of security events
 
         Raises:
-            InvalidParameters: If engine or engine group is invalid
+            InvalidParameters: If engine, engine group, severity, start_time or end_time is invalid
         '''
-        # Validate engine and engine group
-        if engine not in control.allowed_engines:
+
+        # Convert engine and engine_group to list if they are 'all'
+        if engine == 'all':
+            engine = control.allowed_engines
+        if engine_group == 'all':
+            engine_group = control.allowed_engine_groups
+
+        # Validate start_time, end_time, engine, engine_group and severity
+        if not start_time and not end_time:
+            raise exceptions.InvalidParameters("At least start_time or end_time are required")
+        if not engine and not engine_group:
+            raise exceptions.InvalidParameters("At least engine or engine_group are required")
+        if engine and engine_group:
+            raise exceptions.InvalidParameters("engine and engine_group cannot be used together")        
+        if engine and not control.check_allowed_values(control.allowed_engines, engine):
             raise exceptions.InvalidParameters(f"Invalid engine: {engine}, allowed values are: {', '.join(control.allowed_engines)}")
-        if engine_group not in control.allowed_engine_groups    :
+        if engine_group and not control.check_allowed_values(control.allowed_engine_groups, engine_group):
             raise exceptions.InvalidParameters(f"Invalid engine group: {engine_group}, allowed values are: {', '.join(control.allowed_engine_groups)}")
+        if severity and not control.check_allowed_values(control.allowed_security_events_severities, severity):
+            raise exceptions.InvalidParameters(f"Invalid severity: {severity}, allowed values are: {', '.join(control.allowed_security_events_severities)}")
+
+        # Convert start_time and end_time to ISO format
+        if start_time and isinstance(start_time, datetime):
+            start_time = start_time.strftime('%Y-%m-%dT%H:%M:%SZ')
+        if end_time and isinstance(end_time, datetime):
+            end_time = end_time.strftime('%Y-%m-%dT%H:%M:%SZ')
+        
 
         # Retrieve security events
         endpoint = '/security-events/v1/security-events'
@@ -468,12 +549,59 @@ class Client:
             'engineGroup': engine_group,
             'severity': severity,
             'persistenceTimestampStart': start_time,
+            'persistenceTimestampEnd': end_time,
             'limit': limit
         }
-        return self.call_api('POST', endpoint, params, api_limit=200)
+        # TODO: Remove json=False when the API is fixed.
+        # Currently the API does not support JSON input even if the documentation says it does.
+        return self.call_api('POST', endpoint, params, api_limit=200, json=False)
+
+
+    def security_events_count(self, group_by: str = '', organization_id=None, engine=None, engine_group=None, 
+                              severity=None, start_time=None, end_time=None):
+        '''
+        Retrieve the count of security events.
+        '''
+        # Convert engine and engine_group to list if they are 'all'
+        if engine == 'all':
+            engine = control.allowed_engines
+        if engine_group == 'all':
+            engine_group = control.allowed_engine_groups
+
+        # Validate group_by, start_time, end_time, engine and engine_group
+        if group_by not in control.allowed_security_events_group_by:
+            raise exceptions.InvalidParameters(f"Invalid group by: {group_by}, allowed values are: {', '.join(control.allowed_security_events_group_by)}")
+        if not start_time and not end_time:
+            raise exceptions.InvalidParameters("At least start_time or end_time are required")
+        if not engine and not engine_group:
+            raise exceptions.InvalidParameters("At least engine or engine_group are required")
+        if engine and engine_group:
+            raise exceptions.InvalidParameters("engine and engine_group cannot be used together")  
+        if engine and not control.check_allowed_values(control.allowed_engines, engine):
+            raise exceptions.InvalidParameters(f"Invalid engine: {engine}, allowed values are: {', '.join(control.allowed_engines)}")
+        if engine_group and not control.check_allowed_values(control.allowed_engine_groups, engine_group):
+            raise exceptions.InvalidParameters(f"Invalid engine group: {engine_group}, allowed values are: {', '.join(control.allowed_engine_groups)}")
+
+        # Convert start_time and end_time to ISO format
+        if start_time and isinstance(start_time, datetime):
+            start_time = start_time.strftime('%Y-%m-%dT%H:%M:%SZ')
+        if end_time and isinstance(end_time, datetime):
+            end_time = end_time.strftime('%Y-%m-%dT%H:%M:%SZ')
+        
+        endpoint = '/security-events/v1/security-events'
+        params = {
+            'organizationId': organization_id,
+            'engine': engine,
+            'engineGroup': engine_group,
+            'severity': severity,
+            'persistenceTimestampStart': start_time,
+            'persistenceTimestampEnd': end_time,
+            'count': group_by,
+        }
+        return self.call_api('POST', endpoint, params, aggregate=True, json=False)
 
     # Incidents
-    def get_incident_list(self,  organization_id=None, incident_id=None, start_time=None, end_time=None, status=('new',), 
+    def get_incident_list(self,  organization_id=None, incident_id=None, start_time=None, end_time=None, status='all', 
                           risk_level=('medium', 'high', 'severe'), resolution=None, limit=20):
         
         '''
@@ -497,19 +625,19 @@ class Client:
         '''
         # Add 'all' to the list of allowed values
         if status == 'all':
-            status = allowed_incident_statuses
+            status = control.allowed_incident_statuses
         if resolution == 'all':
-            resolution = allowed_incident_resolutions
+            resolution = control.allowed_incident_resolutions
         if risk_level == 'all':
-            risk_level = allowed_risk_levels
+            risk_level = control.allowed_risk_levels
 
         # Validate status, resolution, and risk level
-        if status not in allowed_incident_statuses and status != 'all':
-            raise exceptions.InvalidParameters(f"Invalid status: {status}, allowed values are: {', '.join(allowed_incident_statuses)}")
-        if resolution not in allowed_incident_resolutions and resolution != 'all':
-            raise exceptions.InvalidParameters(f"Invalid resolution: {resolution}, allowed values are: {', '.join(allowed_incident_resolutions)}")
-        if risk_level not in allowed_risk_levels and risk_level != 'all':
-            raise exceptions.InvalidParameters(f"Invalid risk level: {risk_level}, allowed values are: {', '.join(allowed_risk_levels)}")
+        if status and not control.check_allowed_values(control.allowed_incident_statuses, status):
+            raise exceptions.InvalidParameters(f"Invalid status: {status}, allowed values are: {', '.join(control.allowed_incident_statuses)}")
+        if resolution and not control.check_allowed_values(control.allowed_incident_resolutions, resolution):
+            raise exceptions.InvalidParameters(f"Invalid resolution: {resolution}, allowed values are: {', '.join(control.allowed_incident_resolutions)}")
+        if risk_level and not control.check_allowed_values(control.allowed_risk_levels, risk_level):
+            raise exceptions.InvalidParameters(f"Invalid risk level: {risk_level}, allowed values are: {', '.join(control.allowed_risk_levels)}")
 
         # Retrieve incidents
         endpoint = '/incidents/v1/incidents'
@@ -606,9 +734,9 @@ class Client:
             resolution (str): The new resolution of the incidents
         '''
         # Validate status and resolution
-        if status not in control.allowed_incident_statuses:
+        if not control.check_allowed_values(control.allowed_incident_statuses, status):
             raise exceptions.InvalidParameters(f"Invalid status: {status}, allowed values are: {', '.join(control.allowed_incident_statuses)}")
-        if resolution not in control.allowed_incident_resolutions and resolution is not None:
+        if resolution and not control.check_allowed_values(control.allowed_incident_resolutions, resolution):
             raise exceptions.InvalidParameters(f"Invalid resolution: {resolution}, allowed values are: {', '.join(control.allowed_incident_resolutions)}")
         
         # Update incidents
@@ -660,7 +788,7 @@ class Client:
         }
         return self.call_api('POST', endpoint, params)
     
-    def list_response_actions(self, organization_id, order=None, type=None, action_id=None, 
+    def list_response_actions(self, organization_id, order='desc', type=None, action_id=None, 
                               state=None, comment=None, author=None, result=None, device_id=None, limit=10):
         '''
         List response actions.
@@ -680,7 +808,14 @@ class Client:
         Returns:
             list: List of response actions
         '''
-        endpoint = '/response-actions/v1/response-actions'
+        if order and not control.check_allowed_values(control.allowed_response_action_orders, order, list_allowed=False):
+            raise exceptions.InvalidParameters(f"Invalid order: {order}, allowed values are: {', '.join(control.allowed_response_action_orders)}")
+        if state and not control.check_allowed_values(control.allowed_response_action_states, state, list_allowed=False):
+            raise exceptions.InvalidParameters(f"Invalid state: {state}, allowed values are: {', '.join(control.allowed_response_action_states)}")
+        if result and not control.check_allowed_values(control.allowed_response_action_results, result, list_allowed=False):
+            raise exceptions.InvalidParameters(f"Invalid result: {result}, allowed values are: {', '.join(control.allowed_response_action_results)}")
+
+        endpoint = '/response-actions/v1/responses'
         params = {
             'organizationId': organization_id,
             'order': order,
@@ -709,10 +844,15 @@ class Client:
         Returns:
             list: List of missing updates
         '''
+        if severity == 'all':
+            severity = control.allowed_update_severities
+        if category == 'all':
+            category = control.allowed_update_categories
+
         # Validate severity and category
-        if severity not in control.allowed_update_severities:
+        if severity and not control.check_allowed_values(control.allowed_update_severities, severity):
             raise exceptions.InvalidParameters(f"Invalid severity: {severity}, allowed values are: {', '.join(control.allowed_update_severities)}")
-        if category not in control.allowed_update_categories:
+        if category and not control.check_allowed_values(control.allowed_update_categories, category):
             raise exceptions.InvalidParameters(f"Invalid category: {category}, allowed values are: {', '.join(control.allowed_update_categories)}")
         
         # Query missing updates
@@ -731,7 +871,7 @@ class Client:
         Get the latest version of a database.
         
         Args:
-            database_id (str): The ID of the database to get the latest version of
+            database_id (str or list[str]): The ID of the database to get the latest version of
 
         Returns:
             dict: The version information for the given database
@@ -753,7 +893,19 @@ class Organization(OrganizationRepresentation):
         Returns:
             list: List of devices
         '''
-        return self.client.get_devices(organization_id=str(self.id), **kwargs)
+        return self.client.get_devices(organization_id=self.id, **kwargs)
+
+    def devices_count(self, **kwargs):
+        '''
+        Get the count of devices for an organization.
+        '''
+        return self.client.devices_count(organization_id=self.id, **kwargs)
+    
+    def devices_histogram(self, **kwargs):
+        '''
+        Get the histogram of devices for an organization.
+        '''
+        return self.client.devices_histogram(organization_id=self.id, **kwargs)
 
     def get_incidents(self, **kwargs):
         '''
@@ -765,7 +917,7 @@ class Organization(OrganizationRepresentation):
         Returns:
             list: List of incidents
         '''
-        return self.client.get_incident_list(organization_id=str(self.id), **kwargs)
+        return self.client.get_incident_list(organization_id=self.id, **kwargs)
 
     def get_security_events(self, **kwargs):
         '''
@@ -777,8 +929,13 @@ class Organization(OrganizationRepresentation):
         Returns:
             list: List of security events
         '''
-        return self.client.get_security_events(organization_id=str(self.id), **kwargs)
+        return self.client.get_security_events(organization_id=self.id, **kwargs)
 
+    def security_events_count(self, **kwargs):
+        '''
+        Get the count of security events for an organization.
+        '''
+        return self.client.security_events_count(organization_id=self.id, **kwargs)
 
 class Incident(IncidentRepresentation):
     def get_detections(self, start_time=None, end_time=None, limit=100):
@@ -793,7 +950,7 @@ class Incident(IncidentRepresentation):
         Returns:
             list: List of detections
         '''
-        return self.client.get_incident_detections(incident_id=str(self.id), start_time=start_time, end_time=end_time, limit=limit)
+        return self.client.get_incident_detections(incident_id=self.id, start_time=start_time, end_time=end_time, limit=limit)
     
     def add_comment(self, comment):
         '''
@@ -802,7 +959,7 @@ class Incident(IncidentRepresentation):
         Args:
             comment (str): The comment to add
         '''
-        return self.client.add_incidents_comments([str(self.id)], comment)
+        return self.client.add_incidents_comments([self.id], comment)
     
     def update_status(self, status, resolution=None):
         '''
@@ -812,7 +969,7 @@ class Incident(IncidentRepresentation):
             status (str): The new status of the incident
             resolution (str): The new resolution of the incident
         '''
-        return self.client.update_incidents_status([str(self.id)], status, resolution)
+        return self.client.update_incidents_status([self.id], status, resolution)
 
 
 class Device(DeviceRepresentation):
@@ -824,7 +981,7 @@ class Device(DeviceRepresentation):
             operation (str): The operation to trigger
             params (dict): Additional parameters for the operation
         '''
-        return self.client.trigger_device_operation(operation, [str(self.id)], params)
+        return self.client.trigger_device_operation(operation, [self.id], params)
     
     def isolate(self, message=None):
         '''
@@ -907,13 +1064,13 @@ class Device(DeviceRepresentation):
         Returns:
             list: List of operations
         '''
-        return self.client.get_device_operations(str(self.id))
+        return self.client.get_device_operations(self.id)
 
     def delete(self):
         '''
         Delete the device by removing subscription key.
         '''
-        return self.client.delete_devices([str(self.id)])
+        return self.client.delete_devices([self.id])
     
     def update_state(self, state: str):
         '''
@@ -928,7 +1085,7 @@ class Device(DeviceRepresentation):
         Raises:
             InvalidParameters: If state is invalid
         '''
-        return self.client.update_devices([str(self.id)], state)
+        return self.client.update_devices([self.id], state)
     
     def change_subscription_key(self, subscription_key: str):
         '''
@@ -940,19 +1097,19 @@ class Device(DeviceRepresentation):
         Returns:
             dict: The result of the operation
         '''
-        return self.client.update_devices([str(self.id)], subscription_key=subscription_key)
+        return self.client.update_devices([self.id], subscription_key=subscription_key)
     
     def set_blocked(self):
         '''
         Set the device to blocked state.
         '''
-        return self.client.update_devices([str(self.id)], state='blocked')
+        return self.client.update_devices([self.id], state='blocked')
     
     def set_inactive(self):
         '''
         Set the device to inactive state.
         '''
-        return self.client.update_devices([str(self.id)], state='inactive')
+        return self.client.update_devices([self.id], state='inactive')
 
     def get_missing_updates(self, severity=None, category=None, limit=100):
         '''
@@ -969,5 +1126,5 @@ class Device(DeviceRepresentation):
         Raises:
             InvalidParameters: If severity or category is invalid
         '''
-        return self.client.query_missing_updates(str(self.id), severity, category, limit)
+        return self.client.query_missing_updates(self.id, severity, category, limit)
     
