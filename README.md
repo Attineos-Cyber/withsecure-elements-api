@@ -126,7 +126,7 @@ detections = incident.get_detections(limit=100)
 
 # Update incident status
 incident.update_status(
-    status=IncidentStatus.InProgress,
+    status="inProgress",
 )
 
 # Add comments
