@@ -7,16 +7,15 @@ It allows management of organizations, devices, security incidents, and security
 
 import requests
 import urllib.parse
-
+from datetime import datetime
 from requests.auth import HTTPBasicAuth
-from uuid import UUID
+
 from withsecure import control
 from withsecure import exceptions
 from withsecure.representation import DeviceRepresentation, OrganizationRepresentation, IncidentRepresentation
 
 # Base URL for the WithSecure Elements API
 API_URL = 'https://api.connect.withsecure.com'
-
 
 class Client:
     """
@@ -271,7 +270,7 @@ class Client:
             raise exceptions.ResourceNotFound(f"Organization with ID {organization_id} not found")    
 
     # Devices
-    def get_devices(self, organization_id: str = None, device_id: UUID = None, device_type: str = None,
+    def get_devices(self, organization_id: str = None, device_id: str = None, device_type: str = None,
                     state: str = None, name: str = None, serial_number: str = None, online: bool = None,
                     label: str = None, client_version: str = None,
                     protection_status_overview: str = None,
@@ -282,7 +281,7 @@ class Client:
         
         Args:
             organization_id (str): Organization ID
-            device_id (UUID): Specific device ID
+            device_id (str): Specific device ID
             device_type (DeviceType): Device type
             state (DeviceStatus): Device state
             name (str): Device name
@@ -512,9 +511,16 @@ class Client:
             list: List of security events
 
         Raises:
-            InvalidParameters: If engine or engine group is invalid
+            InvalidParameters: If engine, engine group, severity, start_time or end_time is invalid
         '''
-        # Validate start_time, end_time, engine and engine_group
+
+        # Convert engine and engine_group to list if they are 'all'
+        if engine == 'all':
+            engine = control.allowed_engines
+        if engine_group == 'all':
+            engine_group = control.allowed_engine_groups
+
+        # Validate start_time, end_time, engine, engine_group and severity
         if not start_time and not end_time:
             raise exceptions.InvalidParameters("At least start_time or end_time are required")
         if not engine and not engine_group:
@@ -525,6 +531,15 @@ class Client:
             raise exceptions.InvalidParameters(f"Invalid engine: {engine}, allowed values are: {', '.join(control.allowed_engines)}")
         if engine_group and not control.check_allowed_values(control.allowed_engine_groups, engine_group):
             raise exceptions.InvalidParameters(f"Invalid engine group: {engine_group}, allowed values are: {', '.join(control.allowed_engine_groups)}")
+        if severity and not control.check_allowed_values(control.allowed_security_events_severities, severity):
+            raise exceptions.InvalidParameters(f"Invalid severity: {severity}, allowed values are: {', '.join(control.allowed_security_events_severities)}")
+
+        # Convert start_time and end_time to ISO format
+        if start_time and isinstance(start_time, datetime):
+            start_time = start_time.strftime('%Y-%m-%dT%H:%M:%SZ')
+        if end_time and isinstance(end_time, datetime):
+            end_time = end_time.strftime('%Y-%m-%dT%H:%M:%SZ')
+        
 
         # Retrieve security events
         endpoint = '/security-events/v1/security-events'
@@ -547,6 +562,12 @@ class Client:
         '''
         Retrieve the count of security events.
         '''
+        # Convert engine and engine_group to list if they are 'all'
+        if engine == 'all':
+            engine = control.allowed_engines
+        if engine_group == 'all':
+            engine_group = control.allowed_engine_groups
+
         # Validate group_by, start_time, end_time, engine and engine_group
         if group_by not in control.allowed_security_events_group_by:
             raise exceptions.InvalidParameters(f"Invalid group by: {group_by}, allowed values are: {', '.join(control.allowed_security_events_group_by)}")
@@ -561,6 +582,12 @@ class Client:
         if engine_group and not control.check_allowed_values(control.allowed_engine_groups, engine_group):
             raise exceptions.InvalidParameters(f"Invalid engine group: {engine_group}, allowed values are: {', '.join(control.allowed_engine_groups)}")
 
+        # Convert start_time and end_time to ISO format
+        if start_time and isinstance(start_time, datetime):
+            start_time = start_time.strftime('%Y-%m-%dT%H:%M:%SZ')
+        if end_time and isinstance(end_time, datetime):
+            end_time = end_time.strftime('%Y-%m-%dT%H:%M:%SZ')
+        
         endpoint = '/security-events/v1/security-events'
         params = {
             'organizationId': organization_id,

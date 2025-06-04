@@ -9,7 +9,7 @@ class DeviceRepresentation:
     client: Any = None
 
     # Informations de base
-    id: str = None
+    id: Optional[str] = None
     type: Optional[str] = None
     state: Optional[str] = None
     name: Optional[str] = None

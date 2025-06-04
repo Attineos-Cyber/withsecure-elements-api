@@ -13,6 +13,7 @@ allowed_update_categories = ['security', 'nonSecurity', 'servicePack', 'security
 allowed_features = ['debugLogging']
 allowed_device_states = ['blocked', 'inactive']
 allowed_devices_group_by = ['protectionStatus', 'patchOverallState', 'firewallState', 'malwareState']
+allowed_security_events_severities = ['critical', 'warning', 'info']
 allowed_security_events_group_by = ['engine', 'url', 'alertType', 'deviceId', 'infectionName', 'categories', 'appliedRule', 'filePath', 'description']
 allowed_response_action_states = ['created', 'initializing', 'sending', 'running', 'cancelling', 'finished']
 allowed_response_action_results = ['succeeded', 'failed', 'timeout', 'cancelled']

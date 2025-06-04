@@ -142,7 +142,8 @@ incident = client.get_incident_by_id("incident_uuid")
 # Get security events
 events = client.get_security_events(
     organization_id="your_org_id",
-    engine_group=["edr", "epp", "ecp"],
+    start_time=datetime.now() - timedelta(days=300),
+    engine_group="edr",
     severity="high",
     limit=200
 )
@@ -150,8 +151,10 @@ events = client.get_security_events(
 # Get security events count
 events_count = client.security_events_count(
     organization_id="your_org_id",
-    engine_group=["edr", "epp", "ecp"],
-    severity="high",
+    start_time=datetime.now() - timedelta(days=300),
+    engine='all',
+    group_by='engine',
+
 )
 ```
 
@@ -189,7 +192,7 @@ devices = org.get_devices()
 incidents = org.get_incidents()
 
 # Get security events for this organization
-events = org.get_security_events()
+events = org.get_security_events(start_time=datetime.now() - timedelta(days=300), engine='all')
 ```
 
 ### Working with Incidents
@@ -202,7 +205,7 @@ for incident in incidents:
     print(f"Incident: {incident.name}")
     print(f"  - Status: {incident.status}")
     print(f"  - Severity: {incident.severity}")
-    print(f"  - Created: {incident.created_time}")
+    print(f"  - Created: {incident.created_timestamp}")
     print(f"  - Categories: {incident.categories}")
 ```
 
